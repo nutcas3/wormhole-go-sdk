@@ -105,20 +105,14 @@ func (c *EVMCCTP) Transfer(ctx context.Context, amount types.Amount, recipient t
 		return "", fmt.Errorf("failed to convert recipient address: %w", err)
 	}
 
-	// In a real implementation, this would:
-	// 1. Get USDC token address for this chain
-	// 2. Approve TokenMessenger to spend USDC
-	// 3. Call depositForBurn or depositForBurnWithCaller on TokenMessenger
-	// 4. Parse MessageSent event from transaction logs
-	// 5. Extract message hash and nonce
+	// TODO: Implement actual EVM contract interaction:
+	// - Get USDC token address for this chain
+	// - Approve TokenMessenger to spend USDC
+	// - Call depositForBurn(amount, destDomain, recipientAddr, usdcToken)
+	// - Parse MessageSent event from transaction logs
+	// - Extract and return message hash
+	_ = destDomain // Used in actual implementation
 
-	// Pseudo-code for the actual implementation:
-	// usdcToken := getUSDCAddress(c.chain)
-	// approveTx := approveToken(usdcToken, c.tokenMessengerAddr, amount)
-	// depositTx := depositForBurn(amount, destDomain, recipientAddr, usdcToken)
-	// messageHash := parseMessageSentEvent(depositTx.Logs)
-
-	// For now, return placeholder
 	return types.TxHash(fmt.Sprintf("0x%s", hex.EncodeToString(recipientAddr[:8]))), nil
 }
 
@@ -137,19 +131,11 @@ func (c *EVMCCTP) CompleteTransfer(ctx context.Context, message []byte, attestat
 		return "", fmt.Errorf("signer chain %s does not match CCTP chain %s", signer.Chain(), c.chain)
 	}
 
-	// In a real implementation, this would:
-	// 1. Call receiveMessage on MessageTransmitter contract
-	// 2. Pass the message and attestation
-	// 3. Contract verifies attestation signature
-	// 4. Contract mints USDC to recipient
-	// 5. Return transaction hash
+	// TODO: Implement actual EVM contract interaction:
+	// - Call receiveMessage(message, attestation) on MessageTransmitter
+	// - Contract verifies attestation signature and mints USDC
+	// - Wait for confirmation and return transaction hash
 
-	// Pseudo-code:
-	// tx := messageTransmitter.receiveMessage(message, attestation)
-	// waitForConfirmation(tx)
-	// return tx.Hash
-
-	// For now, return placeholder
 	return types.TxHash(fmt.Sprintf("0x%s", hex.EncodeToString(message[:8]))), nil
 }
 
@@ -246,24 +232,13 @@ func (s *SolanaCCTP) Transfer(ctx context.Context, amount types.Amount, recipien
 		return "", fmt.Errorf("failed to convert recipient address: %w", err)
 	}
 
-	// In a real implementation, this would:
-	// 1. Get USDC token mint address for Solana
-	// 2. Create approve instruction for Token Messenger
-	// 3. Create depositForBurn instruction
-	// 4. Build and sign transaction
-	// 5. Send transaction to Solana network
-	// 6. Parse MessageSent event from transaction
-	// 7. Extract message hash
+	// TODO: Implement actual Solana program interaction:
+	// - Get USDC token mint address
+	// - Create approve and depositForBurn instructions
+	// - Build, sign, and send transaction with destDomain and recipientAddr
+	// - Parse MessageSent event and extract message hash
+	_ = destDomain // Used in actual implementation
 
-	// Pseudo-code:
-	// usdcMint := getUSDCMint()
-	// approveIx := createApproveInstruction(signer, s.tokenMessengerAddr, amount)
-	// depositIx := createDepositForBurnInstruction(amount, destDomain, recipientAddr)
-	// tx := buildTransaction([approveIx, depositIx])
-	// signature := signer.Sign(tx)
-	// txHash := sendTransaction(signature)
-
-	// For now, return placeholder
 	return types.TxHash(hex.EncodeToString(recipientAddr[:8])), nil
 }
 
@@ -282,22 +257,11 @@ func (s *SolanaCCTP) CompleteTransfer(ctx context.Context, message []byte, attes
 		return "", fmt.Errorf("signer chain %s does not match CCTP chain %s", signer.Chain(), s.chain)
 	}
 
-	// In a real implementation, this would:
-	// 1. Create receiveMessage instruction for Message Transmitter
-	// 2. Pass message and attestation as instruction data
-	// 3. Build and sign transaction
-	// 4. Send transaction to Solana network
-	// 5. Message Transmitter program verifies attestation
-	// 6. Program mints USDC to recipient
-	// 7. Return transaction signature
+	// TODO: Implement actual Solana program interaction:
+	// - Create receiveMessage instruction with message and attestation
+	// - Build, sign, and send transaction
+	// - Program verifies attestation and mints USDC to recipient
 
-	// Pseudo-code:
-	// receiveIx := createReceiveMessageInstruction(message, attestation)
-	// tx := buildTransaction([receiveIx])
-	// signature := signer.Sign(tx)
-	// txHash := sendTransaction(signature)
-
-	// For now, return placeholder
 	return types.TxHash(hex.EncodeToString(message[:8])), nil
 }
 

@@ -78,7 +78,7 @@ func (t *EVMTokenBridge) IsWrappedAsset(ctx context.Context, token types.TokenID
 type SolanaTokenBridge struct {
 	chain     types.Chain
 	programID string
-	rpcClient interface{}
+	rpcClient any
 }
 
 // NewSolanaTokenBridge creates a new Solana token bridge client
