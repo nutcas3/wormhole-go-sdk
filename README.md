@@ -10,20 +10,21 @@ A comprehensive Go SDK for interacting with the Wormhole cross-chain messaging p
 - **Type-Safe**: Strongly typed interfaces for all operations
 - **Modular Design**: Use only the components you need
 - **Protocol Support**: Core Bridge, Token Bridge, and CCTP integration
+- **Production-Ready**: Full blockchain library integrations with real transaction handling
 
 ## Supported Platforms
 
 ### Platform-Specific Packages
 - **EVM**: Ethereum, BSC, Polygon, Avalanche, Arbitrum, Optimism, Base, and more
-- **Solana**: Native Solana integration
+- **Solana**: Native Solana integration with solana-go
 - **Algorand**: Algorand blockchain support
 - **Aptos**: Aptos Move-based chain
 - **CosmWasm**: Terra, Injective, Osmosis, Cosmos Hub
 - **Sui**: Sui Move-based chain
 
 ### Protocol-Specific Packages
-- **Core Protocol**: Basic message passing
-- **Token Bridge (WTT)**: Cross-chain token transfers
+- **Core Protocol**: Basic message passing with VAA support
+- **Token Bridge**: Cross-chain token transfers with attestation
 - **CCTP**: Circle's Cross-Chain Transfer Protocol for native USDC
 
 ## Installation
@@ -51,7 +52,6 @@ import (
 )
 
 func main() {
-    // Initialize with desired platforms
     wh, err := wormhole.New(
         types.Testnet,
         evm.New(),
@@ -61,164 +61,145 @@ func main() {
         log.Fatal(err)
     }
 
-    // Get chain information
     chain, _ := wh.GetChain(types.Ethereum)
     fmt.Printf("Chain ID: %d\n", chain.ChainID())
     fmt.Printf("RPC: %s\n", chain.Config().RPC)
 }
 ```
 
-### Fetch Chain Information
+### Token Transfer Example
 
 ```go
-// Get Solana chain context
-solanaChain, err := wh.GetChain(types.Solana)
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Printf("Chain ID: %d\n", solanaChain.ChainID())
-fmt.Printf("RPC: %s\n", solanaChain.Config().RPC)
-fmt.Printf("Platform: %s\n", solanaChain.Platform())
-```
-
-### Create Addresses and Token IDs
-
-```go
-// Create chain addresses
-senderAddr := wormhole.ChainAddress(types.Ethereum, "0xYourAddress")
-receiverAddr := wormhole.ChainAddress(types.Solana, "YourSolanaAddress")
-
-// Create token IDs
-usdcToken := wormhole.TokenID(types.Ethereum, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
-nativeETH := wormhole.TokenID(types.Ethereum, "native")
-
-// Get canonical address
-canonicalAddr := wormhole.CanonicalAddress(senderAddr)
-```
-
-## Token Transfers
-
-### Manual Token Transfer
-
-```go
-package main
-
 import (
-    "context"
-    "time"
-
-    wormhole "github.com/wormhole-foundation/wormhole-go-sdk"
-    "github.com/wormhole-foundation/wormhole-go-sdk/platforms/evm"
     "github.com/wormhole-foundation/wormhole-go-sdk/transfer"
-    "github.com/wormhole-foundation/wormhole-go-sdk/types"
 )
 
-func main() {
-    ctx := context.Background()
-    
-    // Initialize SDK
-    wh, _ := wormhole.New(types.Testnet, evm.New())
-    
-    // Define transfer parameters
-    token := wormhole.TokenID(types.Ethereum, "0xTokenAddress")
-    amount := types.NewAmount("1000000", 6) // 1 USDC
-    source := wormhole.ChainAddress(types.Ethereum, "0xSourceAddress")
-    dest := wormhole.ChainAddress(types.Solana, "DestAddress")
-    
-    // Create transfer
-    xfer := transfer.NewTokenTransfer(wh, token, amount, source, dest, false, nil, "")
-    
-    // Get quote
-    quote, _ := xfer.QuoteTransfer(ctx)
-    
-    // 1. Initiate transfer (requires signer)
-    // srcTxHashes, _ := xfer.InitiateTransfer(ctx, signer)
-    
-    // 2. Wait for attestation
-    // attestIds, _ := xfer.FetchAttestation(ctx, 60*time.Second)
-    
-    // 3. Complete transfer
-    // destTxHashes, _ := xfer.CompleteTransfer(ctx, destSigner)
-}
-```
+// Create transfer
+token := wormhole.TokenID(types.Ethereum, "0xTokenAddress")
+amount := types.NewAmount("1000000", 6)
+source := wormhole.ChainAddress(types.Ethereum, "0xSourceAddress")
+dest := wormhole.ChainAddress(types.Solana, "DestAddress")
 
-### Automatic Token Transfer
+xfer := transfer.NewTokenTransfer(wh, token, amount, source, dest, false, nil, "")
 
-For automatic transfers, set the `automatic` parameter to `true`:
+// Get quote
+quote, _ := xfer.QuoteTransfer(ctx)
+fmt.Printf("Estimated time: %v\n", quote.EstimatedTime)
+fmt.Printf("Total fee: %s\n", quote.TotalFee)
 
-```go
-xfer := transfer.NewTokenTransfer(
-    wh,
-    token,
-    amount,
-    source,
-    dest,
-    true,  // Automatic transfer
-    nil,
-    "",
-)
-
-// Only need to initiate - completion is automatic
+// Execute transfer (requires signer)
 srcTxHashes, _ := xfer.InitiateTransfer(ctx, signer)
+attestIds, _ := xfer.FetchAttestation(ctx, 60*time.Second)
+destTxHashes, _ := xfer.CompleteTransfer(ctx, destSigner)
 ```
 
 ## Architecture
 
-### Core Types
+### Core Components
 
-- **Network**: Mainnet, Testnet, or Devnet
-- **Chain**: Specific blockchain (Ethereum, Solana, etc.)
-- **Platform**: Blockchain platform type (EVM, Solana, etc.)
-- **ChainAddress**: Address on a specific chain
-- **TokenID**: Token identifier (chain + address)
-- **UniversalAddress**: 32-byte address format used across all chains
+The SDK follows a modular, layered architecture:
 
-### Chain Context
+1. **Types Layer** (`types/`): Core type definitions
+   - Network, Chain, Platform types
+   - Address and token abstractions
+   - Signer interfaces
 
-The `ChainContext` provides a unified interface for interacting with chains:
+2. **Configuration Layer** (`config/`): Network and chain configurations
+   - Pre-configured settings for Mainnet, Testnet, Devnet
+   - Customizable RPC endpoints and contract addresses
 
-```go
-chain, _ := wh.GetChain(types.Ethereum)
+3. **Context Layer** (`context/`): Unified chain interfaces
+   - ChainContext for chain operations
+   - RPC and protocol client caching
 
-// Get platform-specific RPC client
-rpcClient := chain.GetRPCClient()
+4. **Platform Layer** (`platforms/`): Platform-specific implementations
+   - EVM, Solana, Aptos, Sui, Algorand, CosmWasm
+   - Native blockchain library integrations
 
-// Get protocol clients
-coreBridge, _ := chain.GetCoreBridge()
-tokenBridge, _ := chain.GetTokenBridge()
+5. **Protocol Layer** (`protocols/`): Protocol implementations
+   - Core Bridge for message passing
+   - Token Bridge for token transfers
+   - VAA parsing and verification
+
+6. **Transfer Layer** (`transfer/`): High-level transfer abstractions
+   - TokenTransfer for standard transfers
+   - CircleTransfer for CCTP
+
+### Project Structure
+
+```
+wormhole-go-sdk/
+├── types/              # Core type definitions
+├── config/             # Network and chain configurations
+├── context/            # Chain context implementation
+├── platforms/          # Platform-specific implementations
+│   ├── evm/           # Ethereum and EVM chains
+│   ├── solana/        # Solana integration
+│   ├── aptos/         # Aptos integration
+│   ├── sui/           # Sui integration
+│   ├── algorand/      # Algorand integration
+│   └── cosmwasm/      # CosmWasm integration
+├── protocols/          # Protocol implementations
+│   ├── core/          # Core bridge (message passing)
+│   ├── tokenbridge/   # Token bridge
+│   └── vaa.go         # VAA parsing
+├── rpc/               # RPC client interfaces
+├── transfer/          # Transfer abstractions
+└── examples/          # Example applications
 ```
 
-### Signers
+## RPC Clients
 
-The SDK supports two types of signers:
+All platforms include production-ready RPC client implementations:
 
-- **SignOnlySigner**: Signs transactions without broadcasting
-- **SignAndSendSigner**: Signs and broadcasts transactions
+### EVM RPC Client
+- Uses `go-ethereum` ethclient
+- Methods: GetBlockNumber, GetBalance, GetTransactionReceipt, SendTransaction, EstimateGas, CallContract
 
-```go
-// Create an EVM signer
-signer, err := evm.NewSigner(types.Ethereum, "YOUR_PRIVATE_KEY")
+### Solana RPC Client
+- Uses `solana-go` RPC client
+- Methods: GetBlockHeight, GetBalance, GetAccountInfo, GetTransaction, SendTransaction, SimulateTransaction
 
-// Create a Solana signer
-solanaSigner := solana.NewSigner([]byte("YOUR_PRIVATE_KEY"))
-```
+### Aptos RPC Client
+- HTTP REST API client
+- Methods: GetBlockHeight, GetBalance, GetAccountInfo, SubmitTransaction, SimulateTransaction
+
+### Sui RPC Client
+- JSON-RPC 2.0 client
+- Methods: GetLatestCheckpoint, GetBalance, GetObject, ExecuteTransaction, DryRunTransaction
+
+### Algorand RPC Client
+- REST API client
+- Methods: GetBlockHeight, GetBalance, GetAccountInfo, SendTransaction, WaitForConfirmation
+
+### CosmWasm RPC Client
+- Cosmos REST + Tendermint RPC
+- Methods: GetBlockHeight, GetBalance, GetAccountInfo, BroadcastTx, QueryContract
+
+See [rpc/README.md](rpc/README.md) for detailed RPC client documentation.
 
 ## Protocols
 
 ### Core Bridge
 
+Message publishing and VAA handling:
+
 ```go
 import "github.com/wormhole-foundation/wormhole-go-sdk/protocols/core"
 
-// Publish a message
+// Publish message
 sequence, err := coreBridge.PublishMessage(ctx, payload, nonce, consistencyLevel)
 
 // Get message fee
 fee, err := coreBridge.GetMessageFee(ctx)
+
+// Parse message from logs
+msg, err := coreBridge.ParseMessageFromLogs(logs)
 ```
 
 ### Token Bridge
+
+Cross-chain token transfers:
 
 ```go
 import "github.com/wormhole-foundation/wormhole-go-sdk/protocols/tokenbridge"
@@ -231,26 +212,57 @@ txHash, err := tokenBridge.CompleteTransfer(ctx, vaa, signer)
 
 // Attest token
 txHash, err := tokenBridge.AttestToken(ctx, token, signer)
+
+// Create wrapped token
+txHash, err := tokenBridge.CreateWrapped(ctx, vaa, signer)
+
+// Check if wrapped
+isWrapped, err := tokenBridge.IsWrappedAsset(ctx, token)
 ```
 
-### CCTP (Circle)
+### VAA Parsing
 
 ```go
-import "github.com/wormhole-foundation/wormhole-go-sdk/protocols/cctp"
+import "github.com/wormhole-foundation/wormhole-go-sdk/protocols/core"
 
-// Transfer native USDC
-txHash, err := cctp.Transfer(ctx, amount, recipient, signer)
+// Parse VAA
+vaa, err := core.ParseVAA(vaaBytes)
 
-// Complete transfer
-txHash, err := cctp.CompleteTransfer(ctx, message, attestation, signer)
+// Access VAA fields
+fmt.Printf("Sequence: %d\n", vaa.Sequence)
+fmt.Printf("Emitter Chain: %d\n", vaa.EmitterChain)
+fmt.Printf("Payload: %x\n", vaa.Payload)
+
+// Verify signatures
+err = vaa.VerifySignatures(guardianSet)
 ```
+
+## Implementation Details
+
+### EVM Token Bridge
+- Approves ERC20 tokens and calls `transferTokens` contract method
+- Redeems tokens using VAA via `completeTransfer`
+- Creates token attestations and wrapped tokens
+- Full transaction handling with go-ethereum
+
+### Solana Token Bridge
+- Builds approve + transfer instructions with PDA derivation
+- Posts VAA and redeems with claim account validation
+- Creates attestations with token mint metadata
+- Derives wrapped mint PDAs and creates wrapped tokens
+- Uses solana-go for transaction building and signing
+
+### Core Bridge
+- **EVM**: Publishes messages with fee handling, parses `LogMessagePublished` events
+- **Solana**: Creates publish message instructions with PDA derivation, parses transaction logs
 
 ## Examples
 
 See the [examples](./examples) directory for complete working examples:
 
-- **basic**: Basic SDK initialization and chain queries
+- **basic**: SDK initialization and chain queries
 - **transfer**: Token transfer workflow
+- **rpc**: RPC client usage examples
 
 Run examples:
 
@@ -262,39 +274,104 @@ cd examples/transfer
 go run main.go
 ```
 
-## Network Configuration
+## API Reference
 
-The SDK comes with pre-configured endpoints for all networks:
+### Core Types
 
-- **Mainnet**: Production network with real assets
-- **Testnet**: Test network for development
-- **Devnet**: Local development network
+```go
+// Network types
+type Network string
+const (
+    Mainnet Network = "Mainnet"
+    Testnet Network = "Testnet"
+    Devnet  Network = "Devnet"
+)
 
-You can customize RPC endpoints and contract addresses as needed.
+// Chain types
+type Chain string
+const (
+    Ethereum, Solana, BSC, Polygon, Avalanche, Arbitrum, Optimism, Base, ...
+)
+
+// Address types
+type ChainAddress struct {
+    Chain   Chain
+    Address string
+}
+
+type UniversalAddress [32]byte
+
+// Token types
+type TokenID struct {
+    Chain   Chain
+    Address string
+}
+
+type Amount struct {
+    Value    string
+    Decimals uint8
+}
+
+// Signer interfaces
+type Signer interface {
+    Chain() Chain
+    Address() string
+}
+```
+
+### Main SDK
+
+```go
+// Initialize SDK
+wh, err := wormhole.New(network Network, platforms ...Platform)
+
+// Get chain context
+chain, err := wh.GetChain(chain Chain)
+
+// Get all chains
+chains := wh.GetChains()
+
+// Helper functions
+addr := wormhole.ChainAddress(chain Chain, address string)
+token := wormhole.TokenID(chain Chain, address string)
+canonical := wormhole.CanonicalAddress(addr ChainAddress)
+```
+
+### Transfer Package
+
+```go
+// Create token transfer
+xfer := transfer.NewTokenTransfer(
+    wormhole,
+    token TokenID,
+    amount Amount,
+    source ChainAddress,
+    destination ChainAddress,
+    automatic bool,
+    payload []byte,
+    nativeGas string,
+)
+
+// Transfer operations
+quote, err := xfer.QuoteTransfer(ctx)
+srcTxs, err := xfer.InitiateTransfer(ctx, signer)
+attestIds, err := xfer.FetchAttestation(ctx, timeout)
+destTxs, err := xfer.CompleteTransfer(ctx, signer)
+transfer := xfer.GetTransfer()
+```
+
+## Best Practices
+
+1. **Always check errors**: Never ignore error return values
+2. **Use contexts**: Pass contexts for cancellation and timeouts
+3. **Test on testnet**: Always test thoroughly on testnet before mainnet
+4. **Secure private keys**: Never hardcode or log private keys
+5. **Validate inputs**: Validate addresses and amounts before transfers
+6. **Handle state**: Check transfer state before operations
+7. **Set timeouts**: Use reasonable timeouts for network operations
+8. **Monitor transactions**: Track transaction hashes and confirmations
 
 ## Development
-
-### Project Structure
-
-```
-wormhole-go-sdk/
-├── types/              # Core type definitions
-├── config/             # Network and chain configurations
-├── context/            # Chain context implementation
-├── platforms/          # Platform-specific implementations
-│   ├── evm/
-│   ├── solana/
-│   ├── aptos/
-│   ├── sui/
-│   ├── algorand/
-│   └── cosmwasm/
-├── protocols/          # Protocol implementations
-│   ├── core/          # Core bridge
-│   ├── tokenbridge/   # Token bridge
-│   └── cctp/          # Circle CCTP
-├── transfer/          # Transfer abstractions
-└── examples/          # Example applications
-```
 
 ### Building
 
@@ -306,6 +383,13 @@ go build ./...
 
 ```bash
 go test ./...
+```
+
+### Dependencies
+
+```bash
+go mod download
+go mod tidy
 ```
 
 ## Comparison with TypeScript SDK
@@ -325,6 +409,7 @@ This Go SDK mirrors the architecture of the official Wormhole TypeScript SDK:
 - [Wormhole Documentation](https://wormhole.com/docs/)
 - [TypeScript SDK Reference](https://wormhole.com/docs/tools/typescript-sdk/sdk-reference/)
 - [Wormhole GitHub](https://github.com/wormhole-foundation)
+- [Contributing Guide](docs/CONTRIBUTING.md)
 
 ## License
 
@@ -332,7 +417,7 @@ MIT License
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
 ## Disclaimer
 
